@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerScript : MonoBehaviour
@@ -9,66 +8,97 @@ public class PlayerScript : MonoBehaviour
     public MainCameraController mainCameraController;
     public EnvironmentChecker environmentChecker;
     public float rotationSpeed = 600f;
+
     Quaternion requiredRotation;
     bool playerControl = true;
-    public bool playerInAction { get; private set; }
 
+    public bool playerInAction { get; private set; }
 
     [Header("Player Animator")]
     public Animator animator;
-
 
     [Header("Player Collision and Gravity")]
     public CharacterController characterController;
     public float surfaceCheckRadius = 0.3f;
     public Vector3 surfaceCheckOffset;
     public LayerMask surfaceLayer;
+
     bool onSurface;
+
     public bool playerOnLedge { get; set; }
     public bool playerhanging { get; set; }
     public LedgeInfo LedgeInfo { get; set; }
+
     [SerializeField] float fallingSpeed;
     [SerializeField] Vector3 moveDir;
     [SerializeField] Vector3 requiredMoveDir;
+
     Vector3 velocity;
 
+    void Awake()
+    {
+        if (characterController == null)
+            characterController = GetComponent<CharacterController>();
+
+        if (animator == null)
+            animator = GetComponent<Animator>();
+
+        if (environmentChecker == null)
+            environmentChecker = GetComponent<EnvironmentChecker>();
+    }
 
     void Update()
     {
-        if (!playerControl)
+        if (!playerControl || playerhanging)
             return;
 
-        if (playerhanging)
+        if (characterController == null ||
+            animator == null ||
+            environmentChecker == null ||
+            mainCameraController == null)
+        {
             return;
+        }
 
-        velocity = Vector2.zero;
+        velocity = Vector3.zero;
 
         if (onSurface)
         {
             fallingSpeed = 0f;
             velocity = moveDir * movementSpeed;
 
-            playerOnLedge = environmentChecker.ChechLedge(moveDir, out LedgeInfo ledgeInfo);
+            playerOnLedge =
+                environmentChecker.ChechLedge(moveDir, out LedgeInfo ledgeInfo);
+
             if (playerOnLedge)
             {
                 LedgeInfo = ledgeInfo;
                 PlayerLedgeMovement();
-                Debug.Log("Player is on Ledge");
             }
 
-            animator.SetFloat("movementValue", velocity.magnitude / movementSpeed, 0.2f, Time.deltaTime);
+            float movementValue = movementSpeed > 0f
+                ? velocity.magnitude / movementSpeed
+                : 0f;
+
+            animator.SetFloat(
+                "movementValue",
+                movementValue,
+                0.2f,
+                Time.deltaTime
+            );
         }
         else
         {
             fallingSpeed += Physics.gravity.y * Time.deltaTime;
-            velocity = transform.forward * movementSpeed / 2;
+            velocity = transform.forward * movementSpeed / 2f;
         }
+
         velocity.y = fallingSpeed;
 
         PlayerMovement();
         SurfaceCheck();
+
         animator.SetBool("onSurface", onSurface);
-        Debug.Log("Player on Surface " + onSurface);
     }
 
     void PlayerMovement()
@@ -76,34 +106,47 @@ public class PlayerScript : MonoBehaviour
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
 
-        float movementAmount = Mathf.Clamp01(Mathf.Abs(horizontal) + Mathf.Abs(vertical));
+        float movementAmount = Mathf.Clamp01(
+            Mathf.Abs(horizontal) + Mathf.Abs(vertical)
+        );
 
-        var movementInput = (new Vector3(horizontal, 0, vertical)).normalized;
+        var movementInput =
+            new Vector3(horizontal, 0f, vertical).normalized;
 
-        requiredMoveDir = mainCameraController.floatRotation * movementInput;
+        requiredMoveDir =
+            mainCameraController.floatRotation * movementInput;
 
         characterController.Move(velocity * Time.deltaTime);
 
-        if (movementAmount > 0 && moveDir.magnitude > 0.2f)
+        if (movementAmount > 0f && moveDir.magnitude > 0.2f)
         {
             requiredRotation = Quaternion.LookRotation(moveDir);
         }
 
         moveDir = requiredMoveDir;
 
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, requiredRotation, rotationSpeed * Time.deltaTime);
+        transform.rotation = Quaternion.RotateTowards(
+            transform.rotation,
+            requiredRotation,
+            rotationSpeed * Time.deltaTime
+        );
     }
 
     void SurfaceCheck()
     {
-        onSurface = Physics.CheckSphere(transform.TransformPoint(surfaceCheckOffset), surfaceCheckRadius, surfaceLayer);
+        onSurface = Physics.CheckSphere(
+            transform.TransformPoint(surfaceCheckOffset),
+            surfaceCheckRadius,
+            surfaceLayer
+        );
     }
 
     void PlayerLedgeMovement()
     {
-        float angle = Vector3.Angle(LedgeInfo.surfacehit.normal, requiredMoveDir);
+        float angle =
+            Vector3.Angle(LedgeInfo.surfacehit.normal, requiredMoveDir);
 
-        if (angle < 90)
+        if (angle < 90f)
         {
             velocity = Vector3.zero;
             moveDir = Vector3.zero;
@@ -113,32 +156,67 @@ public class PlayerScript : MonoBehaviour
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;
-        Gizmos.DrawSphere(transform.TransformPoint(surfaceCheckOffset), surfaceCheckRadius);
+
+        Gizmos.DrawSphere(
+            transform.TransformPoint(surfaceCheckOffset),
+            surfaceCheckRadius
+        );
     }
 
-    public IEnumerator PerformAction(string AnimationName, CompareTargetParameter ctp = null, Quaternion RequiredRotation = new Quaternion(), bool LookAtObstacle = false, float ParkourActionDelay = 0f)
+    public IEnumerator PerformAction(
+        string AnimationName,
+        CompareTargetParameter ctp = null,
+        Quaternion RequiredRotation = new Quaternion(),
+        bool LookAtObstacle = false,
+        float ParkourActionDelay = 0f)
     {
+        if (animator == null)
+        {
+            Debug.LogError("PlayerScript: Animator reference is missing.", this);
+            yield break;
+        }
+
         playerInAction = true;
 
         animator.CrossFadeInFixedTime(AnimationName, 0.2f);
+
         yield return null;
 
         var animationState = animator.GetNextAnimatorStateInfo(0);
-        if (!animationState.IsName(AnimationName))
-            Debug.Log("Animation Name is Incorrect");
 
-        float rotatestartTime = (ctp != null) ?ctp.startTime : 0f;
+        if (!animationState.IsName(AnimationName))
+        {
+            Debug.LogWarning(
+                "PlayerScript: Animation state not found: " + AnimationName,
+                this
+            );
+        }
+
+        float animationLength = animationState.length;
+
+        if (animationLength <= 0f)
+        {
+            playerInAction = false;
+            yield break;
+        }
+
+        float rotateStartTime = ctp != null ? ctp.startTime : 0f;
         float timerCounter = 0f;
-        while (timerCounter <= animationState.length)
+
+        while (timerCounter <= animationLength)
         {
             timerCounter += Time.deltaTime;
 
-            float normalizedTimerCounter = timerCounter / animationState.length;
+            float normalizedTimerCounter =
+                timerCounter / animationLength;
 
-            // Make the player look toward the obstacle
-            if (LookAtObstacle && normalizedTimerCounter > rotatestartTime)
+            if (LookAtObstacle && normalizedTimerCounter > rotateStartTime)
             {
-                transform.rotation = Quaternion.RotateTowards(transform.rotation, RequiredRotation, rotationSpeed * Time.deltaTime);
+                transform.rotation = Quaternion.RotateTowards(
+                    transform.rotation,
+                    RequiredRotation,
+                    rotationSpeed * Time.deltaTime
+                );
             }
 
             if (ctp != null)
@@ -147,38 +225,55 @@ public class PlayerScript : MonoBehaviour
             }
 
             if (animator.IsInTransition(0) && timerCounter > 0.5f)
-            {
                 break;
-            }
 
             yield return null;
         }
 
-        yield return new WaitForSeconds(ParkourActionDelay);
+        if (ParkourActionDelay > 0f)
+            yield return new WaitForSeconds(ParkourActionDelay);
 
         playerInAction = false;
     }
 
     void CompareTarget(CompareTargetParameter compareTargetParameter)
     {
-        animator.MatchTarget(compareTargetParameter.position, transform.rotation, compareTargetParameter.bodyPart, new MatchTargetWeightMask(compareTargetParameter.positionWeight, 0), compareTargetParameter.startTime, compareTargetParameter.endTime);
+        if (animator == null || compareTargetParameter == null)
+            return;
+
+        animator.MatchTarget(
+            compareTargetParameter.position,
+            transform.rotation,
+            compareTargetParameter.bodyPart,
+            new MatchTargetWeightMask(
+                compareTargetParameter.positionWeight,
+                0f
+            ),
+            compareTargetParameter.startTime,
+            compareTargetParameter.endTime
+        );
     }
 
     public void SetControl(bool hasControl)
     {
-        this.playerControl = hasControl;
-        characterController.enabled = hasControl;
+        playerControl = hasControl;
+
+        if (characterController != null)
+            characterController.enabled = hasControl;
 
         if (!hasControl)
         {
-            animator.SetFloat("movementValue", 0f);
+            if (animator != null)
+                animator.SetFloat("movementValue", 0f);
+
             requiredRotation = transform.rotation;
         }
     }
 
     public void EnableCC(bool endbled)
     {
-        characterController.enabled = enabled;
+        if (characterController != null)
+            characterController.enabled = endbled;
     }
 
     public void ResetRequiredRotation()

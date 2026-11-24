@@ -1,25 +1,59 @@
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 public class ClimbingPoint : MonoBehaviour
 {
     public bool MountPoint;
-    public List<Neighbour> neighbours;
+    public List<Neighbour> neighbours = new List<Neighbour>();
 
     void Awake()
     {
-        var twoWayClimbNeighbour = neighbours.Where(n => n.isPointTwoWay);
-        foreach (var neighbour in twoWayClimbNeighbour)
+        if (neighbours == null)
+            neighbours = new List<Neighbour>();
+
+        // Create reverse connections for two-way neighbours.
+        foreach (var neighbour in neighbours)
         {
-            neighbour.climbingPoint?.CreatePointConnection(this, -neighbour.pointDirection, neighbour.connectionType, neighbour.isPointTwoWay);
+            if (neighbour == null || !neighbour.isPointTwoWay)
+                continue;
+
+            if (neighbour.climbingPoint != null)
+            {
+                neighbour.climbingPoint.CreatePointConnection(
+                    this,
+                    -neighbour.pointDirection,
+                    neighbour.connectionType,
+                    neighbour.isPointTwoWay
+                );
+            }
         }
     }
 
-    public void CreatePointConnection(ClimbingPoint climbingPoint, Vector2 pointDir, ConnectionType connectionType, bool isPointTwoWay)
+    public void CreatePointConnection(
+        ClimbingPoint climbingPoint,
+        Vector2 pointDir,
+        ConnectionType connectionType,
+        bool isPointTwoWay)
     {
-        var neighbour = new Neighbour()
+        if (neighbours == null)
+            neighbours = new List<Neighbour>();
+
+        if (climbingPoint == null)
+            return;
+
+        // Avoid adding the same connection more than once.
+        foreach (var existing in neighbours)
+        {
+            if (existing != null &&
+                existing.climbingPoint == climbingPoint &&
+                existing.pointDirection == pointDir &&
+                existing.connectionType == connectionType)
+            {
+                return;
+            }
+        }
+
+        var neighbour = new Neighbour
         {
             climbingPoint = climbingPoint,
             pointDirection = pointDir,
@@ -32,16 +66,37 @@ public class ClimbingPoint : MonoBehaviour
 
     public Neighbour GetNeighbour(Vector2 climbDirection)
     {
+        if (neighbours == null)
+            return null;
+
         Neighbour neighbour = null;
 
-        if(climbDirection.y != 0)
+        if (climbDirection.y != 0)
         {
-            neighbour = neighbours.FirstOrDefault(n => n.pointDirection.y == climbDirection.y);
+            foreach (var item in neighbours)
+            {
+                if (item != null &&
+                    item.climbingPoint != null &&
+                    item.pointDirection.y == climbDirection.y)
+                {
+                    neighbour = item;
+                    break;
+                }
+            }
         }
 
-        if(neighbour == null && climbDirection.x != 0)
+        if (neighbour == null && climbDirection.x != 0)
         {
-            neighbour = neighbours.FirstOrDefault(n => n.pointDirection.x == climbDirection.x);
+            foreach (var item in neighbours)
+            {
+                if (item != null &&
+                    item.climbingPoint != null &&
+                    item.pointDirection.x == climbDirection.x)
+                {
+                    neighbour = item;
+                    break;
+                }
+            }
         }
 
         return neighbour;
@@ -50,11 +105,19 @@ public class ClimbingPoint : MonoBehaviour
     private void OnDrawGizmos()
     {
         Debug.DrawRay(transform.position, transform.forward, Color.black);
+
+        if (neighbours == null)
+            return;
+
         foreach (var neighbour in neighbours)
         {
-            if (neighbour.climbingPoint != null)
+            if (neighbour != null && neighbour.climbingPoint != null)
             {
-                Debug.DrawLine(transform.position, neighbour.climbingPoint.transform.position, (neighbour.isPointTwoWay) ? Color.green : Color.black);
+                Debug.DrawLine(
+                    transform.position,
+                    neighbour.climbingPoint.transform.position,
+                    neighbour.isPointTwoWay ? Color.green : Color.black
+                );
             }
         }
     }
@@ -69,4 +132,8 @@ public class Neighbour
     public bool isPointTwoWay = true;
 }
 
-public enum ConnectionType { Jump, Move }
+public enum ConnectionType
+{
+    Jump,
+    Move
+}
