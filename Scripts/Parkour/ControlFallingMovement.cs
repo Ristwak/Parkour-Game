@@ -1,16 +1,27 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class ControlFallingMovement : StateMachineBehaviour
 {
-    private void OnStateEnter(Animator animator, AnimatorStateInfo animatorStateInfo, int layerIndex)
+    PlayerScript playerScript;
+
+    public override void OnStateEnter(
+        Animator animator,
+        AnimatorStateInfo animatorStateInfo,
+        int layerIndex)
     {
-        animator.GetComponent<PlayerScript>().HasPlayerControl = false;
+        if (playerScript == null && animator != null)
+            playerScript = animator.GetComponent<PlayerScript>();
+
+        if (playerScript != null)
+            playerScript.HasPlayerControl = false;
     }
 
-    private void OnStateExit(Animator animator, AnimatorStateInfo animatorStateInfo, int layerIndex)
+    public override void OnStateExit(
+        Animator animator,
+        AnimatorStateInfo animatorStateInfo,
+        int layerIndex)
     {
-        animator.GetComponent<PlayerScript>().HasPlayerControl = true;
+        if (playerScript != null)
+            playerScript.HasPlayerControl = true;
     }
 }

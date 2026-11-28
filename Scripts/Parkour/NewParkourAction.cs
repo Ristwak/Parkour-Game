@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 [CreateAssetMenu(menuName = "Parkour Menu/Create New Parkour Action")]
@@ -14,6 +12,7 @@ public class NewParkourAction : ScriptableObject
     [Header("Rotating Player Toward Obstacle")]
     [SerializeField] bool lookAtObstacle;
     [SerializeField] float parkourActionDelay;
+
     public Quaternion RequiredRotation { get; set; }
 
     [Header("Target Matching")]
@@ -27,22 +26,25 @@ public class NewParkourAction : ScriptableObject
 
     public bool CheckIfAvailabe(ObstacleInfo hitData, Transform player)
     {
-        if(!string.IsNullOrEmpty(barrierTag)  && hitData.hitInfo.transform.tag != barrierTag)
+        if (player == null)
+            return false;
+
+        if (!hitData.hitFound || !hitData.heightHitFound)
+            return false;
+
+        if (hitData.hitInfo.transform == null)
+            return false;
+
+        if (!string.IsNullOrEmpty(barrierTag) &&
+            hitData.hitInfo.transform.tag != barrierTag)
         {
             return false;
         }
+
         float checkHeight = hitData.heightInfo.point.y - player.position.y;
-        Debug.Log("CheckIfAvailable called for action: " + animationName);
-        Debug.Log("Obstacle height: " + hitData.heightInfo.point.y);
-        Debug.Log("Player height: " + player.position.y);
-        Debug.Log("Check height: " + checkHeight);
-        Debug.Log("Min height: " + minHeight + " Max height: " + maxHeight);
 
         if (checkHeight <= minHeight || checkHeight >= maxHeight)
-        {
-            Debug.Log("Height condition not met for action: " + animationName);
             return false;
-        }
 
         if (lookAtObstacle)
         {
@@ -54,7 +56,6 @@ public class NewParkourAction : ScriptableObject
             ComparePosition = hitData.heightInfo.point;
         }
 
-        Debug.Log("Height condition met for action: " + animationName);
         return true;
     }
 

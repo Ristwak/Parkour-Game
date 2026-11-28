@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -8,38 +7,60 @@ public class ParkourControllerScript : MonoBehaviour
     public EnvironmentChecker environmentChecker;
     public Animator animator;
     public PlayerScript playerScript;
+
     [SerializeField] NewParkourAction jumpDownParkourActions;
 
     [Header("Parkor Action Area")]
     public List<NewParkourAction> newParkourActions;
 
+    void Awake()
+    {
+        if (environmentChecker == null)
+            environmentChecker = GetComponent<EnvironmentChecker>();
+
+        if (playerScript == null)
+            playerScript = GetComponent<PlayerScript>();
+
+        if (animator == null)
+            animator = GetComponent<Animator>();
+    }
+
     void Update()
     {
-        if (Input.GetButton("Jump") && !playerScript.playerInAction && !playerScript.playerhanging)
+        if (playerScript == null || environmentChecker == null)
+            return;
+
+        if (Input.GetButton("Jump") &&
+            !playerScript.playerInAction &&
+            !playerScript.playerhanging)
         {
             var hitData = environmentChecker.CheckObstacle();
-            Debug.Log("Jump enter");
 
-            if (hitData.hitFound)
+            if (hitData.hitFound && hitData.heightHitFound)
             {
-                Debug.Log("Obstacle detected: " + hitData.hitInfo.transform.name);
-                foreach (var action in newParkourActions)
+                if (newParkourActions != null)
                 {
-                    Debug.Log("Checking action: " + action.AnimationName);
-                    if (action.CheckIfAvailabe(hitData, transform))
+                    foreach (var action in newParkourActions)
                     {
-                        Debug.Log("Performing Parkour Action: " + action.AnimationName);
-                        // perform parkour action
-                        StartCoroutine(PerformParkourAction(action));
-                        break;
+                        if (action == null)
+                            continue;
+
+                        if (action.CheckIfAvailabe(hitData, transform))
+                        {
+                            StartCoroutine(PerformParkourAction(action));
+                            break;
+                        }
                     }
                 }
             }
         }
 
-        if (playerScript.playerOnLedge && !playerScript.playerInAction && Input.GetButton("Jump"))
+        if (playerScript.playerOnLedge &&
+            !playerScript.playerInAction &&
+            Input.GetButton("Jump"))
         {
-            if (playerScript.LedgeInfo.angle <= 50)
+            if (jumpDownParkourActions != null &&
+                playerScript.LedgeInfo.angle <= 50)
             {
                 playerScript.playerOnLedge = false;
                 StartCoroutine(PerformParkourAction(jumpDownParkourActions));
@@ -49,12 +70,16 @@ public class ParkourControllerScript : MonoBehaviour
 
     IEnumerator PerformParkourAction(NewParkourAction action)
     {
+        if (action == null || playerScript == null)
+            yield break;
+
         playerScript.SetControl(false);
 
         CompareTargetParameter compareTargetParameter = null;
-        if(action.AllowTargetMatching)
+
+        if (action.AllowTargetMatching)
         {
-            compareTargetParameter = new CompareTargetParameter()
+            compareTargetParameter = new CompareTargetParameter
             {
                 position = action.ComparePosition,
                 bodyPart = action.CompareBodyPart,
@@ -64,12 +89,29 @@ public class ParkourControllerScript : MonoBehaviour
             };
         }
 
-        yield return playerScript.PerformAction(action.AnimationName, compareTargetParameter, action.RequiredRotation, action.LookAtObstacle, action.ParkourActionDelay);
+        yield return playerScript.PerformAction(
+            action.AnimationName,
+            compareTargetParameter,
+            action.RequiredRotation,
+            action.LookAtObstacle,
+            action.ParkourActionDelay
+        );
+
         playerScript.SetControl(true);
     }
 
     void CompareTarget(NewParkourAction action)
     {
-        animator.MatchTarget(action.ComparePosition, transform.rotation, action.CompareBodyPart, new MatchTargetWeightMask(action.ComparePositionWeight, 0), action.CompareStartTime, action.CompareEndTime);
+        if (action == null || animator == null)
+            return;
+
+        animator.MatchTarget(
+            action.ComparePosition,
+            transform.rotation,
+            action.CompareBodyPart,
+            new MatchTargetWeightMask(action.ComparePositionWeight, 0),
+            action.CompareStartTime,
+            action.CompareEndTime
+        );
     }
 }
